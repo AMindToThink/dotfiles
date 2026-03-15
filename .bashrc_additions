@@ -12,9 +12,13 @@ mkcd() { mkdir -p "$1" && cd "$1"; }
 # CUDA (adjust path if RunPod uses a different version)
 export PATH=$PATH:/usr/local/cuda/bin
 
-# Secrets — loaded from ~/.secrets.env if it exists
-if [ -f ~/.secrets.env ]; then
-    set -a
-    source ~/.secrets.env
-    set +a
-fi
+# Secrets — loaded from persistent /workspace or symlinked ~/.secrets.env
+for _secrets_path in /workspace/.secrets.env ~/.secrets.env; do
+    if [ -f "$_secrets_path" ]; then
+        set -a
+        source "$_secrets_path"
+        set +a
+        break
+    fi
+done
+unset _secrets_path

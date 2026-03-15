@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+WORKSPACE="/workspace"
+DOTFILES="$WORKSPACE/dotfiles"
+
 echo "=== Matthew's RunPod Environment Setup ==="
+
+# Verify we're in the right place
+if [ "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" != "$DOTFILES" ]; then
+    echo "ERROR: This repo should be cloned to $DOTFILES"
+    echo "  git clone https://github.com/AMindToThink/dotfiles.git $DOTFILES"
+    exit 1
+fi
 
 # ---- System dependencies ----
 echo "[1/7] Installing system dependencies..."
@@ -36,45 +46,36 @@ else
     echo "  Already authenticated."
 fi
 
-# ---- Dotfiles ----
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
+# ---- Dotfiles (symlinks + bashrc) ----
 echo "[4/7] Installing dotfiles..."
-ln -sf "$SCRIPT_DIR/.tmux.conf" ~/.tmux.conf
-ln -sf "$SCRIPT_DIR/.gitconfig" ~/.gitconfig
-
-# Append bashrc additions if not already present
-if ! grep -q "Matthew's shell additions" ~/.bashrc 2>/dev/null; then
-    echo "" >> ~/.bashrc
-    cat "$SCRIPT_DIR/.bashrc_additions" >> ~/.bashrc
-    echo "  Added shell additions to ~/.bashrc"
-else
-    echo "  Shell additions already in ~/.bashrc"
-fi
+bash "$DOTFILES/apply.sh"
 
 # ---- Secrets ----
 echo "[5/7] Setting up secrets..."
-if [ ! -f ~/.secrets.env ]; then
-    cp "$SCRIPT_DIR/secrets.env.template" ~/.secrets.env
-    echo "  Created ~/.secrets.env from template — fill in your values!"
+if [ ! -f "$WORKSPACE/.secrets.env" ]; then
+    cp "$DOTFILES/secrets.env.template" "$WORKSPACE/.secrets.env"
+    echo "  Created $WORKSPACE/.secrets.env from template — fill in your values!"
     echo "  Then run: source ~/.bashrc"
 else
-    echo "  ~/.secrets.env already exists"
+    echo "  $WORKSPACE/.secrets.env already exists"
 fi
 
 # ---- Claude Code settings ----
 echo "[6/7] Setting up Claude Code..."
-if [ ! -d ~/.claude/.git ]; then
+if [ ! -d "$WORKSPACE/.claude/.git" ]; then
     tmpdir=$(mktemp -d)
     git clone https://github.com/AMindToThink/claude-code-settings.git "$tmpdir"
-    mkdir -p ~/.claude
-    cp -a "$tmpdir"/. ~/.claude/
+    mkdir -p "$WORKSPACE/.claude"
+    cp -a "$tmpdir"/. "$WORKSPACE/.claude/"
     rm -rf "$tmpdir"
-    echo "  Claude Code settings cloned into ~/.claude (existing files preserved)."
+    echo "  Claude Code settings cloned into $WORKSPACE/.claude"
 else
-    echo "  ~/.claude repo already exists, pulling latest..."
-    git -C ~/.claude pull
+    echo "  $WORKSPACE/.claude repo already exists, pulling latest..."
+    git -C "$WORKSPACE/.claude" pull
 fi
+# Symlink so Claude Code finds its config at ~/.claude
+ln -sfn "$WORKSPACE/.claude" ~/.claude
+echo "  ~/.claude -> $WORKSPACE/.claude"
 
 # ---- uv ----
 echo "[7/7] Installing uv..."
@@ -88,6 +89,9 @@ fi
 echo ""
 echo "=== Done! ==="
 echo "Next steps:"
-echo "  1. Fill in ~/.secrets.env with your API keys"
+echo "  1. Fill in $WORKSPACE/.secrets.env with your API keys"
 echo "  2. Run: source ~/.bashrc"
 echo "  3. Verify: git config user.name  (should be AMindToThink)"
+echo ""
+echo "On future pod restarts, configs will be restored automatically if you set"
+echo "your RunPod start command to: bash $DOTFILES/apply.sh"
