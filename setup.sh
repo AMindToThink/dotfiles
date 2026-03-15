@@ -6,7 +6,7 @@ echo "=== Matthew's RunPod Environment Setup ==="
 # ---- System dependencies ----
 echo "[1/7] Installing system dependencies..."
 apt-get update -qq
-apt-get install -y curl wget vim jq
+apt-get install -y curl wget vim jq tmux
 
 if ! command -v gh &>/dev/null; then
     mkdir -p -m 755 /etc/apt/keyrings
