@@ -1,0 +1,17 @@
+# === Matthew's shell additions ===
+
+# Convenience aliases
+alias sv="source .venv/bin/activate"
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
+# CUDA (adjust path if RunPod uses a different version)
+export PATH=$PATH:/usr/local/cuda/bin
+
+# Secrets — loaded from ~/.secrets.env if it exists
+if [ -f ~/.secrets.env ]; then
+    set -a
+    source ~/.secrets.env
+    set +a
+fi
