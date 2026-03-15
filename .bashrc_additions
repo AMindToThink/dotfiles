@@ -6,6 +6,9 @@ alias ll='ls -alF'
 alias la='ls -A'
 alias l='ls -CF'
 
+# mkdir + cd in one step
+mkcd() { mkdir -p "$1" && cd "$1"; }
+
 # CUDA (adjust path if RunPod uses a different version)
 export PATH=$PATH:/usr/local/cuda/bin
 
