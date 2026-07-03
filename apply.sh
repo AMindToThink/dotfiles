@@ -4,8 +4,7 @@
 # Add to your RunPod start command: bash /workspace/dotfiles/apply.sh
 set -euo pipefail
 
-WORKSPACE="/workspace"
-DOTFILES="$WORKSPACE/dotfiles"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 echo "Applying dotfiles from $DOTFILES..."
 
@@ -13,14 +12,17 @@ echo "Applying dotfiles from $DOTFILES..."
 ln -sf "$DOTFILES/.tmux.conf" ~/.tmux.conf
 ln -sf "$DOTFILES/.gitconfig" ~/.gitconfig
 
-# Secrets symlink (points to persistent location)
-if [ -f "$WORKSPACE/.secrets.env" ]; then
-    ln -sf "$WORKSPACE/.secrets.env" ~/.secrets.env
-fi
+# Secrets/.claude symlinks only apply in RunPod mode, where $WORKSPACE is a
+# separate persistent location from ephemeral $HOME. In local mode
+# $WORKSPACE == $HOME, so these files already live where they need to.
+if [ "$IS_RUNPOD" = true ]; then
+    if [ -f "$WORKSPACE/.secrets.env" ]; then
+        ln -sf "$WORKSPACE/.secrets.env" ~/.secrets.env
+    fi
 
-# Claude Code settings symlink
-if [ -d "$WORKSPACE/.claude" ]; then
-    ln -sfn "$WORKSPACE/.claude" ~/.claude
+    if [ -d "$WORKSPACE/.claude" ]; then
+        ln -sfn "$WORKSPACE/.claude" ~/.claude
+    fi
 fi
 
 # Append bashrc additions if not already present

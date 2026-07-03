@@ -1,31 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORKSPACE="/workspace"
-DOTFILES="$WORKSPACE/dotfiles"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+require_sudo
 
-echo "=== Matthew's RunPod Environment Setup ==="
-
-# Verify we're in the right place
-if [ "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" != "$DOTFILES" ]; then
-    echo "ERROR: This repo should be cloned to $DOTFILES"
-    echo "  git clone https://github.com/AMindToThink/dotfiles.git $DOTFILES"
-    exit 1
-fi
+echo "=== Matthew's Environment Setup ($([ "$IS_RUNPOD" = true ] && echo RunPod || echo local)) ==="
 
 # ---- System dependencies ----
 echo "[1/7] Installing system dependencies..."
-apt-get update -qq
-apt-get install -y curl wget vim jq tmux
+$SUDO apt-get update -qq
+$SUDO apt-get install -y curl wget vim jq tmux
 
 if ! command -v gh &>/dev/null; then
-    mkdir -p -m 755 /etc/apt/keyrings
+    $SUDO mkdir -p -m 755 /etc/apt/keyrings
     out=$(mktemp) && wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg
-    cat "$out" | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
-    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli-stable.list > /dev/null
-    apt-get update -qq
-    apt-get install -y gh
+    cat "$out" | $SUDO tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+    $SUDO chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO tee /etc/apt/sources.list.d/github-cli-stable.list > /dev/null
+    $SUDO apt-get update -qq
+    $SUDO apt-get install -y gh
     echo "  gh CLI installed."
 else
     echo "  gh CLI already installed."
@@ -62,20 +55,27 @@ fi
 
 # ---- Claude Code settings ----
 echo "[6/7] Setting up Claude Code..."
-if [ ! -d "$WORKSPACE/.claude/.git" ]; then
-    tmpdir=$(mktemp -d)
-    git clone https://github.com/AMindToThink/claude-code-settings.git "$tmpdir"
-    mkdir -p "$WORKSPACE/.claude"
-    cp -a "$tmpdir"/. "$WORKSPACE/.claude/"
-    rm -rf "$tmpdir"
-    echo "  Claude Code settings cloned into $WORKSPACE/.claude"
+if [ "$IS_RUNPOD" = true ]; then
+    if [ ! -d "$WORKSPACE/.claude/.git" ]; then
+        tmpdir=$(mktemp -d)
+        git clone https://github.com/AMindToThink/claude-code-settings.git "$tmpdir"
+        mkdir -p "$WORKSPACE/.claude"
+        cp -a "$tmpdir"/. "$WORKSPACE/.claude/"
+        rm -rf "$tmpdir"
+        echo "  Claude Code settings cloned into $WORKSPACE/.claude"
+    else
+        echo "  $WORKSPACE/.claude repo already exists, pulling latest..."
+        git -C "$WORKSPACE/.claude" pull
+    fi
+    # Symlink so Claude Code finds its config at ~/.claude
+    ln -sfn "$WORKSPACE/.claude" ~/.claude
+    echo "  ~/.claude -> $WORKSPACE/.claude"
+elif [ ! -d ~/.claude ]; then
+    git clone https://github.com/AMindToThink/claude-code-settings.git ~/.claude
+    echo "  Claude Code settings cloned into ~/.claude"
 else
-    echo "  $WORKSPACE/.claude repo already exists, pulling latest..."
-    git -C "$WORKSPACE/.claude" pull
+    echo "  ~/.claude already exists — leaving it as-is (not overwriting live settings)"
 fi
-# Symlink so Claude Code finds its config at ~/.claude
-ln -sfn "$WORKSPACE/.claude" ~/.claude
-echo "  ~/.claude -> $WORKSPACE/.claude"
 
 # ---- uv ----
 echo "[7/7] Installing uv..."
@@ -92,6 +92,8 @@ echo "Next steps:"
 echo "  1. Fill in $WORKSPACE/.secrets.env with your API keys"
 echo "  2. Run: source ~/.bashrc"
 echo "  3. Verify: git config user.name  (should be AMindToThink)"
-echo ""
-echo "On future pod restarts, configs will be restored automatically if you set"
-echo "your RunPod start command to: bash $DOTFILES/apply.sh"
+if [ "$IS_RUNPOD" = true ]; then
+    echo ""
+    echo "On future pod restarts, configs will be restored automatically if you set"
+    echo "your RunPod start command to: bash $DOTFILES/apply.sh"
+fi
